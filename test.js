@@ -55,6 +55,7 @@ async function getTvl(
     tokensBalances[storedKey] = tvlResults.tokenBalances;
     usdTokenBalances[storedKey] = tvlResults.usdTokenBalances;
   } else {
+    console.log("Calling function", api, ethBlock, chainBlocks);
     usdTvls[storedKey] = Number(
       await tvlFunction(api, ethBlock, chainBlocks, api)
     );
@@ -62,7 +63,7 @@ async function getTvl(
   if (
     typeof usdTvls[storedKey] !== "number" ||
     Number.isNaN(usdTvls[storedKey])
-  ) {
+  ) {    
     throw new Error(
       `TVL for key ${storedKey} is not a number, instead it is ${usdTvls[storedKey]}`
     );
@@ -121,16 +122,19 @@ sdk.api.abi.call = async (...args) => {
   const chainTvlsToAdd = {};
   const knownTokenPrices = {};
 
-  let tvlPromises = Object.entries(module).map(async ([chain, value]) => {
+  let tvlPromises = Object.entries(module).map(async ([chain, value]) => {    
     if (typeof value !== "object" || value === null) {
       return;
     }
+    console.log("chain", chain, "value", value);
     return Promise.all(
       Object.entries(value).map(async ([tvlType, tvlFunction]) => {
+        console.log("tvlType", tvlType, tvlFunction);
         if (typeof tvlFunction !== "function") {
           return;
         }
         let storedKey = `${chain}-${tvlType}`;
+        console.log("storedKey", storedKey);
         let tvlFunctionIsFetch = false;
         if (tvlType === "tvl") {
           storedKey = chain;
@@ -168,6 +172,7 @@ sdk.api.abi.call = async (...args) => {
     } else {
       mainTvlIsFetch = true;
     }
+    console.log("calling getTvl");
     const mainTvlPromise = getTvl(
       unixTimestamp,
       ethBlock,
@@ -181,8 +186,10 @@ sdk.api.abi.call = async (...args) => {
     );
     tvlPromises.push(mainTvlPromise);
   }
+  console.log("tvlPromises", tvlPromises);
   await Promise.all(tvlPromises);
   Object.entries(chainTvlsToAdd).map(([tvlType, storedKeys]) => {
+    console.log("mapping");
     if (usdTvls[tvlType] === undefined) {
       usdTvls[tvlType] = storedKeys.reduce(
         (total, key) => total + usdTvls[key],
@@ -192,6 +199,9 @@ sdk.api.abi.call = async (...args) => {
       mergeBalances(tvlType, storedKeys, usdTokenBalances);
     }
   });
+
+  console.log("usdTvls", usdTvls);
+
   if (usdTvls.tvl === undefined) {
     throw new Error(
       "Protocol doesn't have total tvl, make sure to export a tvl key either on the main object or in one of the chains"

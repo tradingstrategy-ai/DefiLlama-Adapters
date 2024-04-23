@@ -28,10 +28,14 @@ function treasuryExports(config) {
 
     tvlConfig.blacklistedTokens = [...ownTokens, ...blacklistedTokens]
 
+    console.log("tvlConfig", tvlConfig);
+
     if (chain === 'arbitrum') {
       tvlConfig.tokens = [...tokens, ARB]
     }
     exportObj[chain] = { tvl: sumTokensExport(tvlConfig) }
+
+    console.log("exportObj", chain, exportObj[chain]);
 
     if (ownTokens.length > 0) {
       const { solOwners, ...otherOptions } = config[chain]
