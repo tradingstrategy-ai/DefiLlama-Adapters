@@ -81,11 +81,11 @@ function getChainStrategyVaultAddresses(protocolTVLReply, chainId, api, ethBlock
 // Calculate vault balances for all vaults on a specific chain holding any token
 async function fetchVaultBalances(chainId, chainName, api, ethBlock, chainBlocks) {
   const protocolTVLReply = await fetchDataCached();  
-  console.log("reply", protocolTVLReply);
+  // console.log("reply", protocolTVLReply);
   const vaultAddresses = getChainStrategyVaultAddresses(protocolTVLReply)
-  console.log("Chain", chainId, "owners", vaultAddresses);
+  // console.log("Chain", chainId, "owners", vaultAddresses);
   const chainDefaultTokens = defaultTokens[chainName];
-  console.log("Default tokens", chainDefaultTokens);
+  // console.log("Default tokens", chainDefaultTokens);
 
   const sumTokensExportOptions = {
     owners: vaultAddresses,
@@ -102,7 +102,7 @@ async function fetchVaultBalances(chainId, chainName, api, ethBlock, chainBlocks
 
 module.exports = {
     polygon: {
-      fetch: async (api, ethBlock, chainBlocks) => { 
+      tvl: async (api, ethBlock, chainBlocks) => { 
         return await fetchVaultBalances(137, "polygon", api, ethBlock, chainBlocks) 
       }
     }
