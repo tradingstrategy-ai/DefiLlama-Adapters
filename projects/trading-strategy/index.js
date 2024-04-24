@@ -10,30 +10,37 @@
  * Examples
  * - arca.js - treasuryExports
  * - beefy.js - how to use utils.fetch
- * 
- * TODO: DefiLlama default token lists is limited. It needs to be updated to cover more tokens as otherwise this adapter
- * is missing assets.
- * 
+ *  
  * To run:
  * 
  *     node test.js projects/trading-strategy/index.js
  */
 
-const utils = require('../helper/utils');
-const { treasuryExports } = require("../helper/treasury")
 const { defaultTokens } = require('../helper/cex')
-const { sumTokensExport, sumTokens } = require('../helper/sumTokens')
+const { sumTokens } = require('../helper/sumTokens')
 
 let cachedReply = null;
 
-const chainNames = {
+// EVM chain id -> DefiLlama name mappings
+const tradingStrategySupportedChains = {
   1: "ethereum",
   137: "polygon",
-  5000: "mantle",
   8453: "base",
-  56: "bsc"
+  56: "bsc",
+  42161: "arbitrum"
 }
 
+// Some the tokens traded are listed in Chainlink feeds but not in DefiLLama default sets
+//
+// Find tokens at  https://tradingstrategy.ai/search
+// 
+const extraTokens = {
+  polygon: {
+    "WETH": "0x7ceb23fd6bc0add59e62ac25578270cff1b9f619", 
+    "WBTC": "0x1bfd67037b42cf73acf2047067bd4f2c47d9bfd6",
+    "WMATIC": "0x0d500b1d8e8ef31e21c99d1db9a6444d3adf1270",
+  }
+}
 
 // Get vaults for all chains, cached in-process memory
 async function fetchDataCached() {
@@ -43,67 +50,67 @@ async function fetchDataCached() {
   return cachedReply;
 }
 
-// All strategy vaults are exported as "treasury",
-// as any vault may own any tokens available on the chain.
-// Create a mappping { chain_id: { owners: [address, address...]}}
-// See arca/index.js for structure.
-function buildTreasuryConfig(protocolTVLReply) {
-  const strategies = protocolTVLReply.strategies;
-  let chainIdOwnersMap = {}
-  for (const strat of Object.values(strategies)) {
-    const chainId = strat.chain_id;
-
-    if(!chainId) {
-      // Unsupported/fancy chain
-      continue;
-    }
-
-    const chainName = chainNames[chainId];
-    if(!chainName) {
-      throw new Error(`Does not know DefiLlama chain name for chain id ${chainId}`);
-    }
- 
-    let owners = chainIdOwnersMap[chainName]?.owners || [];
-    owners.push(strat.address)
-    chainIdOwnersMap[chainName] = {
-      owners 
-    }
-  }
-  return chainIdOwnersMap;
-}
-
 // Pull out "address" fuield of all StrategyTVL objects that match the chain id
-function getChainStrategyVaultAddresses(protocolTVLReply, chainId, api, ethBlock, chainBlocks) {
+function getChainStrategyVaultAddresses(protocolTVLReply, chainId) {
     const strategyObjects = Object.values(protocolTVLReply.strategies).filter((strat) => strat.chain_id == chainId);
     return strategyObjects.map((strat) => strat.address)
 }
 
 // Calculate vault balances for all vaults on a specific chain holding any token
 async function fetchVaultBalances(chainId, chainName, api, ethBlock, chainBlocks) {
+  
+  // Get all indexed server-side data
   const protocolTVLReply = await fetchDataCached();  
-  // console.log("reply", protocolTVLReply);
-  const vaultAddresses = getChainStrategyVaultAddresses(protocolTVLReply)
-  // console.log("Chain", chainId, "owners", vaultAddresses);
-  const chainDefaultTokens = defaultTokens[chainName];
-  // console.log("Default tokens", chainDefaultTokens);
-
+  
+  // Extra vault addresses for this chain
+  const vaultAddresses = getChainStrategyVaultAddresses(protocolTVLReply, chainId)
+  
+  // Make a set of spot market tokens we want to iterate 
+  let chainTokens;
+  if(defaultTokens[chainName]) {
+    chainTokens = [...defaultTokens[chainName]];
+  } else {
+    chainTokens = [];
+  }
+  if(extraTokens.chainName) {
+    for(const extraToken of Object.values(extraTokens[chainName])) {
+      if(!chainTokens.includes(extraToken)) {
+        chainTokens.push(extraToken);
+      }  
+    }  
+  }
+  
+  // Get per-token balances across all vaults
   const sumTokensExportOptions = {
     owners: vaultAddresses,
-    tokens: chainDefaultTokens,
+    tokens: chainTokens,
   }
-  //const results = await sumTokensExport(sumTokensExportOptions);
-  //console.log("Results", results);
-  //const resultResults = await results;
-  //console.log("Results await", resultResults);
-  const results = await sumTokens({ ...api, api, ...sumTokensExportOptions });
-  return results;
+
+  // console.log("Token balance query", sumTokensExportOptions);
+
+  const balancePerToken = await sumTokens({ ...api, api, ...sumTokensExportOptions });
+  // console.log("Per token balances", balancePerToken); 
+  return balancePerToken;
 }
 
-
-module.exports = {
-    polygon: {
-      tvl: async (api, ethBlock, chainBlocks) => { 
-        return await fetchVaultBalances(137, "polygon", api, ethBlock, chainBlocks) 
-      }
-    }
+// Create exporters for all chains 
+//
+// Create tvl() async callback for each chain that pulls out the token sum data for all vaults on this chain
+//
+let perChainTvlExporters = {};
+for(const [chainId, chainName] of Object.entries(tradingStrategySupportedChains)) {
+  perChainTvlExporters[chainName] = { tvl: async (api, ethBlock, chainBlocks) => {  return await fetchVaultBalances(chainId, chainName, api, ethBlock, chainBlocks) } };
 }
+
+console.log(perChainTvlExporters);
+
+module.exports = perChainTvlExporters;
+
+// Generate structure example
+// module.exports = {
+//     polygon: {
+//       tvl: async (api, ethBlock, chainBlocks) => { 
+//         return await fetchVaultBalances(137, "polygon", api, ethBlock, chainBlocks) 
+//       }
+//     }
+// }
