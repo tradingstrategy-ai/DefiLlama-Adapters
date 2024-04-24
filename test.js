@@ -57,8 +57,9 @@ async function getTvl(
     usdTokenBalances[storedKey] = tvlResults.usdTokenBalances;
   } else {
     console.log("Calling function", api, ethBlock, chainBlocks);
+    const tvl = await tvlFunction(api, ethBlock, chainBlocks, api);
     usdTvls[storedKey] = Number(
-      await tvlFunction(api, ethBlock, chainBlocks, api)
+      tvl
     );
   }
   if (

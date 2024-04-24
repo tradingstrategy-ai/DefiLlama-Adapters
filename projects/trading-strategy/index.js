@@ -22,7 +22,7 @@
 const utils = require('../helper/utils');
 const { treasuryExports } = require("../helper/treasury")
 const { defaultTokens } = require('../helper/cex')
-const { sumTokensExport, } = require('../helper/sumTokens')
+const { sumTokensExport, sumTokens } = require('../helper/sumTokens')
 
 let cachedReply = null;
 
@@ -73,13 +73,13 @@ function buildTreasuryConfig(protocolTVLReply) {
 }
 
 // Pull out "address" fuield of all StrategyTVL objects that match the chain id
-function getChainStrategyVaultAddresses(protocolTVLReply, chainId) {
+function getChainStrategyVaultAddresses(protocolTVLReply, chainId, api, ethBlock, chainBlocks) {
     const strategyObjects = Object.values(protocolTVLReply.strategies).filter((strat) => strat.chain_id == chainId);
     return strategyObjects.map((strat) => strat.address)
 }
 
 // Calculate vault balances for all vaults on a specific chain holding any token
-async function fetchVaultBalances(chainId, chainName) {
+async function fetchVaultBalances(chainId, chainName, api, ethBlock, chainBlocks) {
   const protocolTVLReply = await fetchDataCached();  
   console.log("reply", protocolTVLReply);
   const vaultAddresses = getChainStrategyVaultAddresses(protocolTVLReply)
@@ -89,16 +89,21 @@ async function fetchVaultBalances(chainId, chainName) {
 
   const sumTokensExportOptions = {
     owners: vaultAddresses,
-    tokens: defaultTokens,
+    tokens: chainDefaultTokens,
   }
-  const results = await sumTokensExport(sumTokensExportOptions);
-  console.log("Results", results);
+  //const results = await sumTokensExport(sumTokensExportOptions);
+  //console.log("Results", results);
+  //const resultResults = await results;
+  //console.log("Results await", resultResults);
+  const results = await sumTokens({ ...api, api, ...sumTokensExportOptions });
   return results;
 }
 
 
 module.exports = {
     polygon: {
-      fetch: async () => { return await fetchVaultBalances(137, "polygon") }
+      fetch: async (api, ethBlock, chainBlocks) => { 
+        return await fetchVaultBalances(137, "polygon", api, ethBlock, chainBlocks) 
+      }
     }
 }
