@@ -11,6 +11,9 @@
  * - arca.js - treasuryExports
  * - beefy.js - how to use utils.fetch
  * 
+ * TODO: DefiLlama default token lists is limited. It needs to be updated to cover more tokens as otherwise this adapter
+ * is missing assets.
+ * 
  * To run:
  * 
  *     node test.js projects/trading-strategy/index.js
@@ -18,6 +21,8 @@
 
 const utils = require('../helper/utils');
 const { treasuryExports } = require("../helper/treasury")
+const { defaultTokens } = require('../helper/cex')
+const { sumTokensExport, } = require('../helper/sumTokens')
 
 let cachedReply = null;
 
@@ -67,22 +72,33 @@ function buildTreasuryConfig(protocolTVLReply) {
   return chainIdOwnersMap;
 }
 
+// Pull out "address" fuield of all StrategyTVL objects that match the chain id
 function getChainStrategyVaultAddresses(protocolTVLReply, chainId) {
     const strategyObjects = Object.values(protocolTVLReply.strategies).filter((strat) => strat.chain_id == chainId);
     return strategyObjects.map((strat) => strat.address)
 }
 
+// Calculate vault balances for all vaults on a specific chain holding any token
 async function fetchVaultBalances(chainId, chainName) {
   const protocolTVLReply = await fetchDataCached();  
   console.log("reply", protocolTVLReply);
   const vaultAddresses = getChainStrategyVaultAddresses(protocolTVLReply)
-  console.log(vaultAddresses);
-  return {tvl: 0};
+  console.log("Chain", chainId, "owners", vaultAddresses);
+  const chainDefaultTokens = defaultTokens[chainName];
+  console.log("Default tokens", chainDefaultTokens);
+
+  const sumTokensExportOptions = {
+    owners: vaultAddresses,
+    tokens: defaultTokens,
+  }
+  const results = await sumTokensExport(sumTokensExportOptions);
+  console.log("Results", results);
+  return results;
 }
 
 
 module.exports = {
     polygon: {
-      fetch: async () => { return await fetchVaultBalances("polygon", 137) }
+      fetch: async () => { return await fetchVaultBalances(137, "polygon") }
     }
 }

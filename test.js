@@ -46,6 +46,7 @@ async function getTvl(
   const api = new sdk.ChainApi({ chain, block: chainBlocks[chain], timestamp: unixTimestamp, storedKey, })
   api.api = api
   api.storedKey = storedKey
+  console.log("getTvl", arguments);
   if (!isFetchFunction) {
     let tvlBalances = await tvlFunction(api, ethBlock, chainBlocks, api);
     if (tvlBalances === undefined) tvlBalances = api.getBalances()
